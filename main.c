@@ -18,23 +18,24 @@ char str[]="Bob.Zhu@Maxdone.com.cn\r\n";
 
 unsigned char Manufacturer[6] = "      ";
 
+#if 0
 void dealy(char t)
 {
 	while(t--);
 }
-
+#endif
 
 //Main Memory Page Program through Buffer 2 with Built-In Erase 85h
-void WritetoFlash(unsigned long addr, char *buff, int len)
+void WritetoFlash(unsigned long address, char *buff, int len)
 {
 	int i;
 	unsigned char dummy, addr[3];
 	
 	if (( 0 == buff) || (len <= 0)) return;
 	
-	addr[0] = (addr >> 16) % 256;
-	addr[1] = (addr >> 8) % 256;
-	//addr[2] = (addr)  % 256;
+	addr[0] = (address >> 16) % 256;
+	addr[1] = (address >> 8) % 256;
+	//addr[2] = (address)  % 256;
 	addr[2] = 0;
 	
 	P1_B0 = 1;
@@ -68,16 +69,16 @@ void WritetoFlash(unsigned long addr, char *buff, int len)
 
 
 //Continuous Array Read (Low Power Mode) 01h
-void ReadtoBuff(unsigned long addr, char *buff, int len)
+void ReadtoBuff(unsigned long address, char *buff, int len)
 {
 	int i;
 	unsigned char dummy, addr[3];
 	
 	if (( 0 == buff) || (len <= 0)) return;
 	
-	addr[0] = (addr >> 16) % 256;
-	addr[1] = (addr >> 8) % 256;
-	addr[2] = (addr)  % 256;
+	addr[0] = (address >> 16) % 256;
+	addr[1] = (address >> 8) % 256;
+	addr[2] = (address)  % 256;
 	
 	P1_B0 = 1;
 	P1_B1 = 1;
@@ -163,6 +164,7 @@ unsigned int getStatusRegister()
 get_deviceid()
 {
 	static bool bgot = 0;
+	int StatusRegister;
 	int i;
 	
 	if(bgot) return;
@@ -183,13 +185,21 @@ get_deviceid()
 	}
 	P1_B1 = 1;
 	
+	StatusRegister = getStatusRegister();
+	
+	if ((StatusRegister & 0x0100) != 0x0100 )
+	{
+		ConfigureBinaryPageSize();
+	}
+	
+	
 	bgot = 1;
 }
 
 int main()
 {
 	int loop = 0;
-	int StatusRegister;
+
 	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //Ä¬ÈÏ20M/8  SYS_CLK
 	PCA0MD = PCA0MD_WDTE__DISABLED;			//¹Ø¹·
 	
@@ -219,8 +229,6 @@ int main()
 		}
 		
 		get_deviceid();
-		
-		StatusRegister = getStatusRegister();
 		
 		if (SCON0_TI) 
 		{
