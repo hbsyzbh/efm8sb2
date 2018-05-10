@@ -131,6 +131,35 @@ void ConfigureBinaryPageSize()
 	P1_B1 = 1;
 }
 
+unsigned int getStatusRegister()
+{
+	unsigned int result;
+	P1_B0 = 1;
+	P1_B1 = 1;
+	
+	P1_B1 = 0;
+	
+		SPI0DAT = 0xD7;
+		while( ! SPI0CN0_SPIF);
+		result = SPI0DAT * 256;
+		SPI0CN0_SPIF = 0;
+
+		SPI0DAT = 0xD7;
+		while( ! SPI0CN0_SPIF);
+		result = SPI0DAT * 256;
+		SPI0CN0_SPIF = 0;
+
+
+		SPI0DAT = 0xD7;
+		while( ! SPI0CN0_SPIF);
+		result += SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	
+	P1_B1 = 1;	
+	
+	return result;
+}
+
 get_deviceid()
 {
 	static bool bgot = 0;
@@ -152,6 +181,7 @@ get_deviceid()
 		Manufacturer[i] = SPI0DAT;
 		SPI0CN0_SPIF = 0;
 	}
+	P1_B1 = 1;
 	
 	bgot = 1;
 }
@@ -159,6 +189,7 @@ get_deviceid()
 int main()
 {
 	int loop = 0;
+	int StatusRegister;
 	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //Ä¬ÈÏ20M/8  SYS_CLK
 	PCA0MD = PCA0MD_WDTE__DISABLED;			//¹Ø¹·
 	
@@ -188,6 +219,8 @@ int main()
 		}
 		
 		get_deviceid();
+		
+		StatusRegister = getStatusRegister();
 		
 		if (SCON0_TI) 
 		{
