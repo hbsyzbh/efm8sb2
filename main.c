@@ -1,5 +1,12 @@
 #include "si_efm8sb2_register_enums.h"
-
+/*
+Status Register Read D7h
+Manufacturer and Device ID Read 9Fh
+Configure ¡°Power of 2¡± (Binary) Page Size 3Dh + 2Ah + 80h + A6h
+Main Memory Page Program through Buffer 1 with Built-In Erase 82h
+Main Memory Page Program through Buffer 2 with Built-In Erase 85h
+Continuous Array Read (Low Power Mode) 01h
+*/
 //sysclk =20m /8 
 //------------timer0 1 SYSCLK_DIV_12 System clock divided by 12.
 //The Timer 1 reload value and prescaler should be set so that overflows 
@@ -14,6 +21,114 @@ unsigned char Manufacturer[6] = "      ";
 void dealy(char t)
 {
 	while(t--);
+}
+
+
+//Main Memory Page Program through Buffer 2 with Built-In Erase 85h
+void WritetoFlash(unsigned long addr, char *buff, int len)
+{
+	int i;
+	unsigned char dummy, addr[3];
+	
+	if (( 0 == buff) || (len <= 0)) return;
+	
+	addr[0] = (addr >> 16) % 256;
+	addr[1] = (addr >> 8) % 256;
+	//addr[2] = (addr)  % 256;
+	addr[2] = 0;
+	
+	P1_B0 = 1;
+	P1_B1 = 1;
+
+	P1_B1 = 0;
+	
+	SPI0DAT = 0x85;
+	while( ! SPI0CN0_SPIF);
+	dummy = SPI0DAT;
+	SPI0CN0_SPIF = 0;
+
+	for( i = 0; i < 3; i++) {
+		SPI0DAT = addr[i];
+		while( ! SPI0CN0_SPIF);
+		dummy = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	
+	
+	for( i = 0; i < len; i++) {
+		SPI0DAT = buff[i];
+		while( ! SPI0CN0_SPIF);
+		//buff[i] = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	P1_B1 = 1;
+}
+
+
+//Continuous Array Read (Low Power Mode) 01h
+void ReadtoBuff(unsigned long addr, char *buff, int len)
+{
+	int i;
+	unsigned char dummy, addr[3];
+	
+	if (( 0 == buff) || (len <= 0)) return;
+	
+	addr[0] = (addr >> 16) % 256;
+	addr[1] = (addr >> 8) % 256;
+	addr[2] = (addr)  % 256;
+	
+	P1_B0 = 1;
+	P1_B1 = 1;
+
+	P1_B1 = 0;
+	
+	SPI0DAT = 0x01;
+	while( ! SPI0CN0_SPIF);
+	dummy = SPI0DAT;
+	SPI0CN0_SPIF = 0;
+
+	for( i = 0; i < 3; i++) {
+		SPI0DAT = addr[i];
+		while( ! SPI0CN0_SPIF);
+		dummy = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	
+	
+	for( i = 0; i < len; i++) {
+		SPI0DAT = 0x01;
+		while( ! SPI0CN0_SPIF);
+		buff[i] = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	P1_B1 = 1;
+}
+
+//Configure ¡°Power of 2¡± (Binary) Page Size 3Dh + 2Ah + 80h + A6h
+void ConfigureBinaryPageSize()
+{
+	const unsigned char cmd[4] = {0x3D, 0x2A, 0x80, 0xA6};
+	int i;
+	
+	P1_B0 = 1;
+	P1_B1 = 1;
+
+	P1_B1 = 0;
+	
+	for(i = 0; i <4; i++)
+	{
+		SPI0DAT = cmd[i];
+		while( ! SPI0CN0_SPIF);
+
+		//Result[i] = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}	
+	
+	P1_B1 = 1;
 }
 
 get_deviceid()
