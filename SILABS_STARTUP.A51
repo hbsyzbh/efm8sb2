@@ -123,7 +123,10 @@ DPH     DATA    83H
                 PUBLIC  ?C_STARTUP
 
                 CSEG    AT      0
-?C_STARTUP:     LJMP    STARTUP1
+?C_STARTUP:     
+				CLR      A
+				MOV     0xD9,A
+				LJMP    STARTUP1
 
                 RSEG    ?C_C51STARTUP
 

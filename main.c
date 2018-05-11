@@ -11,11 +11,12 @@ Continuous Array Read (Low Power Mode) 01h
 //------------timer0 1 SYSCLK_DIV_12 System clock divided by 12.
 //The Timer 1 reload value and prescaler should be set so that overflows 
 //occur at twice the desired UART0 baud rate. The UART0 baud rate is half of the Timer 1 overflow rate.
-char buff[16] = {0};
+char rxbuff[16] = {0};
 char i = 0;
 char j = 0;
 char str[]="Bob.Zhu@Maxdone.com.cn\r\n";
-
+xdata char skipnull  =0;
+xdata char buff[256] = {0};
 unsigned char Manufacturer[6] = "      ";
 
 #if 0
@@ -161,7 +162,7 @@ unsigned int getStatusRegister()
 	return result;
 }
 
-get_deviceid()
+void get_deviceid()
 {
 	static bool bgot = 0;
 	int StatusRegister;
@@ -192,6 +193,14 @@ get_deviceid()
 		ConfigureBinaryPageSize();
 	}
 	
+	ReadtoBuff(0, buff, 256);
+	
+	for(i = 0; i < 256; i++)
+		buff[i] = i;
+	
+	WritetoFlash(0, buff, 256);
+	
+	ReadtoBuff(0, buff, 256);
 	
 	bgot = 1;
 }
@@ -239,7 +248,7 @@ int main()
 		if (SCON0_RI) 
 		{
 			SCON0_RI = 0;
-			buff[((i++) % 16)] = SBUF0;
+			rxbuff[((i++) % 16)] = SBUF0;
 		}
 	}
 }
