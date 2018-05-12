@@ -1,4 +1,5 @@
 Listings/
 Objects/
-test.uvopt
+*.uvopt
+EFM8SB2.uvgui.*
 

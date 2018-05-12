@@ -15,8 +15,9 @@ char rxbuff[16] = {0};
 char i = 0;
 char j = 0;
 char str[]="Bob.Zhu@Maxdone.com.cn\r\n";
-xdata char skipnull  =0;
-xdata char buff[256] = {0};
+char lastchar;
+#define BUF_LEN 256
+xdata char buff[BUF_LEN] = {0};
 unsigned char Manufacturer[6] = "      ";
 
 #if 0
@@ -32,7 +33,7 @@ void WritetoFlash(unsigned long address, char *buff, int len)
 	int i;
 	unsigned char dummy, addr[3];
 	
-	if (( 0 == buff) || (len <= 0)) return;
+	//if (( 0 == buff) || (len <= 0)) return;
 	
 	addr[0] = (address >> 16) % 256;
 	addr[1] = (address >> 8) % 256;
@@ -75,7 +76,7 @@ void ReadtoBuff(unsigned long address, char *buff, int len)
 	int i;
 	unsigned char dummy, addr[3];
 	
-	if (( 0 == buff) || (len <= 0)) return;
+	//if (( 0 == buff) || (len <= 0)) return;
 	
 	addr[0] = (address >> 16) % 256;
 	addr[1] = (address >> 8) % 256;
@@ -193,28 +194,39 @@ void get_deviceid()
 		ConfigureBinaryPageSize();
 	}
 	
-	ReadtoBuff(0, buff, 256);
-	
-	for(i = 0; i < 256; i++)
+	ReadtoBuff(0, buff, BUF_LEN);
+
+#if 0	
+	for(i = 0; i < BUF_LEN; i++)
 		buff[i] = i;
 	
-	WritetoFlash(0, buff, 256);
+	WritetoFlash(0, buff, BUF_LEN);
 	
-	ReadtoBuff(0, buff, 256);
-	
+	ReadtoBuff(0, buff, BUF_LEN);
+#endif	
 	bgot = 1;
 }
 
 int main()
 {
+	char index = 0;
+	unsigned char buffindex = 0;
 	int loop = 0;
-
-	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //默认20M/8  SYS_CLK
+ 
 	PCA0MD = PCA0MD_WDTE__DISABLED;			//关狗
+
+#if 1	
+	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //默认20M/8  SYS_CLK
+#else
+	HFO0CN = 0x8F;
+	while(HFO0CN != 0xCF) ;
+	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__HFOSC;
+#endif
 	
 	CKCON0 = CKCON0_T1M__SYSCLK;	//TIMER1 使用 SYS_CLK
 	TMOD = TMOD_T1M__MODE2;
 	TL1 = TH1 = 126;
+	//TL1 = TH1 = 97;
 	SCON0 = 0x50;
 	
 	TCON = TCON_TR1__RUN;
@@ -242,13 +254,19 @@ int main()
 		if (SCON0_TI) 
 		{
 			SCON0_TI = 0;
-			SBUF0 = str[((j++)% sizeof(str))];
+			if (lastchar == 'F' )
+				SBUF0 = buff[buffindex++];
+			else
+				SBUF0 = str[index++];
+			
+			if (index >= 24) index = 0;
+			
 		}
 		
 		if (SCON0_RI) 
 		{
 			SCON0_RI = 0;
-			rxbuff[((i++) % 16)] = SBUF0;
+			rxbuff[((i++) % 16)] = lastchar = SBUF0;
 		}
 	}
 }

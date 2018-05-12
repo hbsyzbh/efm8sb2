@@ -109,7 +109,7 @@ B       DATA    0F0H
 SP      DATA    81H
 DPL     DATA    82H
 DPH     DATA    83H
-
+PCA0MD  DATA    0D9H
                 NAME    ?C_STARTUP
 
 
@@ -123,15 +123,12 @@ DPH     DATA    83H
                 PUBLIC  ?C_STARTUP
 
                 CSEG    AT      0
-?C_STARTUP:     
-				CLR      A
-				MOV     0xD9,A
-				LJMP    STARTUP1
+?C_STARTUP:     LJMP    STARTUP1
 
                 RSEG    ?C_C51STARTUP
 
 STARTUP1:
-
+				ANL      PCA0MD, #0BFH
 $IF (SILABS_STARTUP = 1)
 EXTRN	CODE (SiLabs_Startup)
                 LCALL 	SiLabs_Startup
@@ -201,6 +198,8 @@ EXTRN CODE (?B_SWITCH0)
                 CALL    ?B_SWITCH0      ; init bank mechanism to code bank 0
 $ENDIF
 ;</h>
+
+				MOV 	0xD9, 0
                 LJMP    ?C_START
 
                 END
