@@ -11,11 +11,13 @@ Continuous Array Read (Low Power Mode) 01h
 //------------timer0 1 SYSCLK_DIV_12 System clock divided by 12.
 //The Timer 1 reload value and prescaler should be set so that overflows 
 //occur at twice the desired UART0 baud rate. The UART0 baud rate is half of the Timer 1 overflow rate.
-char rxbuff[16] = {0};
+//char rxbuff[16] = {0};
 char i = 0;
 char j = 0;
-char str[]="Bob.Zhu@Maxdone.com.cn\r\n";
+code char str[]="Bob.Zhu@Maxdone.com.cn\r\n";
+code char helpstr[]="?: Help\r\nF: Flash\r\nM: FlashManufacturer\r\n";
 char lastchar;
+bool gotnewchar = 0;
 #define BUF_LEN 256
 xdata char buff[BUF_LEN] = {0};
 unsigned char Manufacturer[6] = "      ";
@@ -207,13 +209,63 @@ void get_deviceid()
 	bgot = 1;
 }
 
-int main()
+#if 0 //
+xdata unsigned char cc113config[48];
+unsigned char cc113status;
+
+void setcc113IO()
 {
-	char index = 0;
-	unsigned char buffindex = 0;
-	int loop = 0;
- 
-	PCA0MD = PCA0MD_WDTE__DISABLED;			//¹Ø¹·
+	char i;
+	P0_B3 = 1;
+	//dealy(10);
+	P0_B3 = 0;
+	
+		SPI0DAT = 0x40;
+		while( ! SPI0CN0_SPIF);
+		
+		cc113status = SPI0DAT;
+		SPI0CN0_SPIF = 0;	
+	
+	
+	for (i = 0; i < 3; i++) {
+		SPI0DAT = 0x2E;
+		while( ! SPI0CN0_SPIF);
+
+		SPI0CN0_SPIF = 0;
+	}
+	
+	P0_B3 = 1;
+}
+
+void checkcc113()
+{
+	char i;
+	P0_B3 = 1;
+	//dealy(10);
+	P0_B3 = 0;
+	
+		SPI0DAT = 0xC0;
+		while( ! SPI0CN0_SPIF);
+		
+		cc113status = SPI0DAT;
+		SPI0CN0_SPIF = 0;	
+	
+	
+	for (i = 0; i < 48; i++) {
+		SPI0DAT = 0xC0;
+		while( ! SPI0CN0_SPIF);
+		
+		cc113config[i] = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	P0_B3 = 1;
+}
+#endif
+
+void BoardInit()
+{
+		PCA0MD = PCA0MD_WDTE__DISABLED;			//¹Ø¹·
 
 #if 1	
 	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //Ä¬ÈÏ20M/8  SYS_CLK
@@ -241,32 +293,196 @@ int main()
 	
 	P1MDOUT = P1MDOUT_B0__PUSH_PULL | P1MDOUT_B1__PUSH_PULL;
 	
-	SBUF0 = 0xa5;
-	for( ; ;loop++)
+	IE = IE_EA__ENABLED | IE_ES0__ENABLED;
+}
+
+unsigned char uart0TxIndex = 0;
+unsigned char uart0TxLen;
+xdata unsigned char uart0TxBuff[256];
+
+
+#define uart0RxBuffSize (512)
+unsigned short uart0RxIndex = 0;
+xdata unsigned char  uart0RxBuff[uart0RxBuffSize];
+
+void uart0() interrupt UART0_IRQn
+{
+	if (SCON0_TI) 
 	{
-		if (loop % 500)
-		{
-				continue;
+		if (uart0TxIndex < uart0TxLen) {
+				SBUF0 = uart0TxBuff[uart0TxIndex++];
 		}
-		
-		get_deviceid();
-		
-		if (SCON0_TI) 
-		{
-			SCON0_TI = 0;
-			if (lastchar == 'F' )
+		SCON0_TI = 0;
+	}		
+
+	if (SCON0_RI) 
+	{
+		lastchar = SBUF0;
+		SCON0_RI = 0;
+		gotnewchar = 1;
+	}
+}
+
+void copy(unsigned char *des, unsigned char *src, unsigned short len)
+{
+	unsigned char i;
+	for(i =0; i< len; i++)
+	{
+			des[i] = src[i];
+	}
+}
+
+int StrSize(char *str)
+{
+	int i = 0;
+	while(str[i++] != 0) ;
+
+		return i;
+}
+
+void uart0sendByte(unsigned char byte)
+{
+	uart0TxLen = 0;
+	SCON0_TI = 0;
+	uart0TxIndex = 0;
+	uart0TxLen = 0;
+	SBUF0 = byte;
+}
+
+void uart0send(unsigned char *str, unsigned char len)
+{
+	uart0TxLen = 0;
+	SCON0_TI = 0;
+	copy(uart0TxBuff, str, len);
+	uart0TxIndex = 0;
+	uart0TxLen = len;
+	SBUF0 = uart0TxBuff[uart0TxIndex++];
+}
+
+/*
+	{
+			
+			if (lastchar == 'F' ) {
 				SBUF0 = buff[buffindex++];
-			else
+			} else if (lastchar == 'C' ) {
+				SBUF0 = cc113config[configindex++];
+			} else if (lastchar == 'S' ) {
+				SBUF0 = cc113status;
+			} else {
 				SBUF0 = str[index++];
+			}
 			
 			if (index >= 24) index = 0;
+			if (configindex >= 48) {
+				configindex = 0;
+			}
 			
 		}
-		
-		if (SCON0_RI) 
+*/
+void XmodemFlash(unsigned char *buff, unsigned short packetNum)
+{
+	static xdata unsigned char flashBuff[256];
+	if ((packetNum % 2) == 1) {
+		copy(flashBuff, buff, 128);
+	} else {
+		copy(&flashBuff[128], buff, 128);
+		//void WritetoFlash(unsigned long address, char *buff, int len)
+		WritetoFlash((packetNum / 2 - 1) * 256, flashBuff, 256);
+	}
+}
+
+#define SOH 0x01 
+#define STH 0x02 
+#define EOT 0x04  
+#define ACK 0x06  
+#define NAK 0x15  
+void doFlashDownload()
+{
+	unsigned char i;
+	unsigned short packetNum;
+	xdata unsigned char rxBuff[140];
+	
+	uart0sendByte(ACK);
+	i = 0;
+	packetNum = 1;
+	for(;;) {
+		if (gotnewchar)
 		{
-			SCON0_RI = 0;
-			rxbuff[((i++) % 16)] = lastchar = SBUF0;
+			rxBuff[i++] = lastchar;
+			gotnewchar = 0;
+			if (i == 1) {
+				if (rxBuff[0] == EOT) {
+					uart0sendByte(EOT);
+					break;
+				} else if (rxBuff[0] == SOH) {
+						;
+				} else {
+						break;
+				}
+			}
+			
+			if (i== 133) {
+				unsigned char Num = packetNum;
+				if ((rxBuff[0] == SOH) && (rxBuff[1] == Num) && (rxBuff[2] == ~Num)) {
+					  XmodemFlash(&rxBuff[3], packetNum);
+						uart0sendByte(ACK);
+						packetNum++;
+				} else {
+					 uart0sendByte(NAK);
+				}
+				i = 0;
+			}
 		}
 	}
+}
+
+int main()
+{
+
+	char index = 0;
+	unsigned char buffindex = 0;
+	unsigned char configindex = 0;
+	int loop = 0;
+	bool dump = 0;
+ 
+	BoardInit();
+	
+	uart0send(str, StrSize(str) - 1);
+		
+	get_deviceid();
+	
+	for(;;)
+	{
+		if (gotnewchar)
+		{
+			gotnewchar = 0;
+			
+			switch(lastchar)
+			{
+				case 'F':
+				case 'f':
+					uart0send(buff, 255);
+					break;
+				
+				case 'C':
+					doFlashDownload();
+					break;
+				
+				case 'M':
+				case 'm':
+					uart0send(Manufacturer, 6);
+					break;
+				
+				case '?':
+					uart0send(helpstr, StrSize(helpstr) - 1);
+					break;
+				
+				default:
+					uart0send(str, StrSize(str) - 1);
+					break;
+					
+			}
+		}
+	}
+		
 }
