@@ -23,6 +23,7 @@ xdata unsigned char buff[BUF_LEN] = {0};
 unsigned char Manufacturer[6] = "      ";
 bool sec4 = 0;
 bool testtimer = 0;
+bool bPlaying = 0;
 
 #define WAV_LEN_INDEX	(40)
 
@@ -118,6 +119,65 @@ void ReadtoBuff(unsigned long address, char *buff, int len)
 	
 	P1_B1 = 1;
 }
+
+//Continuous Array Read (Low Power Mode) 01h
+void ReadtoBuff_forint(unsigned long address, char *buff, int len)
+{
+	int i;
+	unsigned char dummy, addr[3];
+	
+	//if (( 0 == buff) || (len <= 0)) return;
+	
+	addr[0] = (address >> 16) % 256;
+	addr[1] = (address >> 8) % 256;
+	addr[2] = (address)  % 256;
+	
+	P1_B0 = 1;
+	P1_B1 = 1;
+
+	P1_B1 = 0;
+	
+	SPI0DAT = 0x01;
+	while( ! SPI0CN0_SPIF);
+	dummy = SPI0DAT;
+	SPI0CN0_SPIF = 0;
+
+	for( i = 0; i < 3; i++) {
+		SPI0DAT = addr[i];
+		while( ! SPI0CN0_SPIF);
+		dummy = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	
+	
+	for( i = 0; i < len; i++) {
+		SPI0DAT = 0x01;
+		while( ! SPI0CN0_SPIF);
+		buff[i] = SPI0DAT;
+		SPI0CN0_SPIF = 0;
+	}
+	
+	P1_B1 = 1;
+}
+
+
+unsigned char getFlashByte(unsigned long address)
+{
+	 unsigned char bytesbuff;
+		ReadtoBuff(address, &bytesbuff, 1);
+	
+	return bytesbuff;
+}
+
+unsigned char getFlashByte_forint(unsigned long address)
+{
+	 unsigned char bytesbuff;
+		ReadtoBuff_forint(address, &bytesbuff, 1);
+	
+	return bytesbuff;
+}
+
 
 //Configure ¡°Power of 2¡± (Binary) Page Size 3Dh + 2Ah + 80h + A6h
 void ConfigureBinaryPageSize()
@@ -269,6 +329,19 @@ void checkcc113()
 }
 #endif
 
+void LM4991_forint(bool on)
+{
+	if (on){
+		P1_B6 = 1;
+		P1_B5 = 0;
+		PCA0CN0 = PCA0CN0_CR__RUN;
+	}else{
+		P1_B6 = 0;
+		P1_B5 = 1;
+		PCA0CN0 = PCA0CN0_CR__STOP;
+	}
+}
+
 void LM4991(bool on)
 {
 	if (on){
@@ -361,11 +434,23 @@ void timer3() interrupt TIMER3_IRQn
 		count = 0;
 		sec4 = 1;
 	}
+	
+	if (bPlaying) {
+		if (waveindex < wavelen) {
+			SetDuty(getFlashByte_forint(waveindex++));
+		} else {
+			LM4991_forint(0);
+			bPlaying = 0;
+		}
+	}
 }
 
 void Play()
 {
-	
+	LM4991(1);
+	waveindex = WAV_LEN_INDEX + 4;
+	SetDuty(getFlashByte(waveindex++));
+	bPlaying = 1;
 }
 
 unsigned char uart0TxIndex = 0;
