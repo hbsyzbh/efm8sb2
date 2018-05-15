@@ -24,7 +24,8 @@ unsigned char Manufacturer[6] = "      ";
 bool sec4 = 0;
 bool testtimer = 0;
 bool bPlaying = 0;
-
+code unsigned char Do[25] = {127, 162, 	192, 	219, 	239, 	252, 	255, 	252, 	239, 	219, 	192, 	192, 	129, 	94, 	64, 	37, 	37, 	4, 	0, 	4, 	17, 	17, 	63, 	94, 127};
+unsigned char DoIndex = 0;
 #define WAV_LEN_INDEX	(40)
 
 unsigned long wavelen = 0;
@@ -365,7 +366,7 @@ void BoardInit()
 		PCA0MD = PCA0MD_WDTE__DISABLED | PCA0MD_CPS__SYSCLK;
 
 #if 1	
-	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__LPOSC;  //Ä¬ÈÏ20M/8  SYS_CLK
+	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_1 | CLKSEL_CLKSL__LPOSC;  //20M  SYS_CLK
 #else
 	HFO0CN = 0x8F;
 	while(HFO0CN != 0xCF) ;
@@ -373,9 +374,10 @@ void BoardInit()
 #endif
 	
 	//CKCON0 = CKCON0_T1M__SYSCLK;	//TIMER1 Ê¹ÓÃ SYS_CLK
-	CKCON0 = CKCON0_T1M__SYSCLK | CKCON0_T3ML__SYSCLK | CKCON0_T3MH__SYSCLK;
+	CKCON0 = CKCON0_T1M__PRESCALE | CKCON0_SCA__SYSCLK_DIV_12 | CKCON0_T3ML__SYSCLK | CKCON0_T3MH__SYSCLK;
 	TMOD = TMOD_T1M__MODE2;
-	TL1 = TH1 = 126;
+	TL1 = TH1 = 169;
+	//TL1 = TH1 = 126;
 	//TL1 = TH1 = 97;
 	SCON0 = 0x50;
 	
@@ -384,7 +386,8 @@ void BoardInit()
 	SPI0CFG = SPI0CFG_MSTEN__MASTER_ENABLED;
 	SPI0CN0 = SPI0CN0_NSSMD__3_WIRE | SPI0CN0_SPIEN__ENABLED;
 	
-	XBR0 = XBR0_URT0E__ENABLED | XBR0_SPI0E__ENABLED | XBR0_CP0E__ENABLED;
+	XBR0 = XBR0_URT0E__ENABLED | XBR0_SPI0E__ENABLED; // | XBR0_CP0E__ENABLED;
+	XBR1 = XBR1_PCA0ME__CEX0;
 	XBR2 = XBR2_XBARE__ENABLED;
 	P0MDOUT = P0MDOUT_B0__PUSH_PULL | P0MDOUT_B1__OPEN_DRAIN | P0MDOUT_B2__PUSH_PULL | P0MDOUT_B3__PUSH_PULL |
 						P0MDOUT_B4__PUSH_PULL | P0MDOUT_B5__OPEN_DRAIN | P0MDOUT_B6__PUSH_PULL | P0MDOUT_B7__PUSH_PULL ;
@@ -422,7 +425,9 @@ void selectTimer3Freq(void)
 	TMR3RLL = TMR3L = time % 256;
 	TMR3RL = time;
 */	
-	TMR3 = TMR3RL = 65308;
+	//TMR3 = TMR3RL = 65308;
+	TMR3 = TMR3RL = 63722;
+	//TMR3 = TMR3RL = 64629;
 }
 
 void timer3() interrupt TIMER3_IRQn
@@ -436,10 +441,16 @@ void timer3() interrupt TIMER3_IRQn
 	}
 	
 	if (bPlaying) {
+#if 1		
 		if (waveindex < wavelen) {
 			SetDuty(getFlashByte_forint(waveindex++));
+#else
+			if (1) {
+			SetDuty(Do[(DoIndex++)%25]);
+#endif			
 		} else {
 			LM4991_forint(0);
+			SetDuty(0);
 			bPlaying = 0;
 		}
 	}
@@ -449,7 +460,12 @@ void Play()
 {
 	LM4991(1);
 	waveindex = WAV_LEN_INDEX + 4;
+#if 1	
 	SetDuty(getFlashByte(waveindex++));
+#else	
+	DoIndex = 0;
+	SetDuty(Do[DoIndex++]);
+#endif	
 	bPlaying = 1;
 }
 
