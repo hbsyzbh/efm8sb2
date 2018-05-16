@@ -40,11 +40,22 @@ void dealy(char t)
 //Main Memory Page Program through Buffer 2 with Built-In Erase 85h
 void WritetoFlash(unsigned long address, char *buff, int len)
 {
+//	static bool btwo0 = 0;
 	int i;
 	unsigned char dummy, addr[3];
 	
-	//if (( 0 == buff) || (len <= 0)) return;
+	/* /if (( 0 == buff) || (len <= 0)) return;
 	
+	if (address == 0) {
+		 if(btwo0) {
+			 while(1)
+				 ;
+		 }
+			 
+		btwo0 = 1;
+	}
+	*/
+
 	addr[0] = (address >> 16) % 256;
 	addr[1] = (address >> 8) % 256;
 	//addr[2] = (address)  % 256;
@@ -365,18 +376,19 @@ void BoardInit()
 {
 		PCA0MD = PCA0MD_WDTE__DISABLED | PCA0MD_CPS__SYSCLK;
 
-#if 1	
+#if 0	
 	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_1 | CLKSEL_CLKSL__LPOSC;  //20M  SYS_CLK
 #else
 	HFO0CN = 0x8F;
 	while(HFO0CN != 0xCF) ;
-	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_8 | CLKSEL_CLKSL__HFOSC;
+	CLKSEL = CLKSEL_CLKDIV__SYSCLK_DIV_1 | CLKSEL_CLKSL__HFOSC;  //24.5M
 #endif
 	
 	//CKCON0 = CKCON0_T1M__SYSCLK;	//TIMER1 สนำร SYS_CLK
 	CKCON0 = CKCON0_T1M__PRESCALE | CKCON0_SCA__SYSCLK_DIV_12 | CKCON0_T3ML__SYSCLK | CKCON0_T3MH__SYSCLK;
 	TMOD = TMOD_T1M__MODE2;
-	TL1 = TH1 = 169;
+	TL1 = TH1 = 150;
+	//TL1 = TH1 = 169;
 	//TL1 = TH1 = 126;
 	//TL1 = TH1 = 97;
 	SCON0 = 0x50;
@@ -426,8 +438,8 @@ void selectTimer3Freq(void)
 	TMR3RL = time;
 */	
 	//TMR3 = TMR3RL = 65308;
-	TMR3 = TMR3RL = 63722;
-	//TMR3 = TMR3RL = 64629;
+	//20M//TMR3 = TMR3RL = 63722;
+	TMR3 = TMR3RL = 63314;
 }
 
 void timer3() interrupt TIMER3_IRQn
@@ -458,6 +470,27 @@ void timer3() interrupt TIMER3_IRQn
 
 void Play()
 {
+	 if ((buff[0] == 'R' )&&
+				(buff[1] == 'I') &&
+				(buff[2] == 'F') &&
+				(buff[3] == 'F') &&
+				(buff[8] == 'W') &&
+				(buff[9] == 'A') &&
+				(buff[10] == 'V') &&
+				(buff[11] == 'E') &&
+				(buff[12] == 'f') &&
+				(buff[13] == 'm') &&
+				(buff[14] == 't')
+	 ) {
+			;
+	 } else {
+		 return;
+	 }		 
+	 
+	
+	
+	
+	
 	LM4991(1);
 	waveindex = WAV_LEN_INDEX + 4;
 #if 1	
@@ -558,9 +591,11 @@ void XmodemFlash(unsigned char *buff, unsigned short packetNum)
 	if ((packetNum % 2) == 1) {
 		copy(flashBuff, buff, 128);
 	} else {
+		unsigned long addr = ((unsigned long)packetNum / 2 - 1) * 256;
 		copy(&flashBuff[128], buff, 128);
 		//void WritetoFlash(unsigned long address, char *buff, int len)
-		WritetoFlash((packetNum / 2 - 1) * 256, flashBuff, 256);
+		addr = addr;
+		WritetoFlash(addr, flashBuff, 256);
 	}
 }
 
@@ -717,9 +752,9 @@ int main()
 	//wavelen = *((unsigned long *)(&buff[WAV_LEN_INDEX]));
 	
 	wavelen = buff[WAV_LEN_INDEX] ;
-	wavelen += buff[WAV_LEN_INDEX + 1] << 8;
-	wavelen += buff[WAV_LEN_INDEX + 2] << 16;
-	wavelen += buff[WAV_LEN_INDEX + 3] << 24;
+	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 1]) << 8;
+	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 2]) << 16;
+	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 3]) << 24;
 	Play();
 	for(;;)
 	{
