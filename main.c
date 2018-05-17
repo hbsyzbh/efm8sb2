@@ -27,9 +27,11 @@ bool bPlaying = 0;
 code unsigned char Do[25] = {127, 162, 	192, 	219, 	239, 	252, 	255, 	252, 	239, 	219, 	192, 	192, 	129, 	94, 	64, 	37, 	37, 	4, 	0, 	4, 	17, 	17, 	63, 	94, 127};
 unsigned char DoIndex = 0;
 #define WAV_LEN_INDEX	(40)
+#define SAMPLE_BITS_INDEX (34)
 
 unsigned long wavelen = 0;
 unsigned long waveindex = WAV_LEN_INDEX + 4;
+unsigned char sampleBits = 0;
 #if 0
 void dealy(char t)
 {
@@ -189,6 +191,18 @@ unsigned char getFlashByte_forint(unsigned long address)
 	
 	return bytesbuff;
 }
+
+short getFlash16byte_forint(unsigned long address)
+{
+	 char charbuff[2];
+	 unsigned short ushortbuff;
+	short shortbuff;
+	 ReadtoBuff_forint(address, &charbuff, 2);
+	 ushortbuff = (unsigned char) charbuff[0]  + ((unsigned char) charbuff[1]) * 256u;
+	shortbuff = (short)ushortbuff;
+	return shortbuff;
+}
+
 
 
 //Configure ¡°Power of 2¡± (Binary) Page Size 3Dh + 2Ah + 80h + A6h
@@ -372,6 +386,17 @@ void SetDuty(unsigned char duty)
 	PCA0CPH0 = duty;
 }
 
+void Set16Duty(int wavduty)
+{
+	long pwmduty = ((long)wavduty + 0x008000);
+	
+	unsigned short tmp = (unsigned long )pwmduty;
+	tmp >>= 5;
+	//PCA0CP0 = tmp;
+	PCA0CPL0 = tmp % 256;
+	PCA0CPH0 = tmp / 256;
+}
+
 void BoardInit()
 {
 		PCA0MD = PCA0MD_WDTE__DISABLED | PCA0MD_CPS__SYSCLK;
@@ -436,10 +461,22 @@ void selectTimer3Freq(void)
 	TMR3RLH = TMR3H = time / 256;
 	TMR3RLL = TMR3L = time % 256;
 	TMR3RL = time;
-*/	
+	
 	//TMR3 = TMR3RL = 65308;
 	//20M//TMR3 = TMR3RL = 63722;
-	TMR3 = TMR3RL = 63314;
+*/	
+	//TMR3 = TMR3RL = 63314; //11,026.1
+	
+	TMR3 = TMR3RL = 63488;//11,962.89
+	if (sampleBits == 8) {
+			PCA0PWM = PCA0PWM_CLSEL__8_BITS | PCA0PWM_ARSEL__AUTORELOAD;
+			PCA0CPM0 = PCA0CPM0_PWM__ENABLED;
+	} else if (sampleBits == 16) {
+			PCA0PWM = PCA0PWM_CLSEL__11_BITS | PCA0PWM_ARSEL__AUTORELOAD;
+			PCA0CPM0 = PCA0CPM0_PWM__ENABLED;
+	} else {
+		TMR3 = TMR3RL = 63314;
+	}
 }
 
 void timer3() interrupt TIMER3_IRQn
@@ -455,7 +492,12 @@ void timer3() interrupt TIMER3_IRQn
 	if (bPlaying) {
 #if 1		
 		if (waveindex < wavelen) {
-			SetDuty(getFlashByte_forint(waveindex++));
+			if (sampleBits==8)
+				SetDuty(getFlashByte_forint(waveindex++));
+			else if (sampleBits==16) {
+				Set16Duty(getFlash16byte_forint(waveindex));
+				waveindex+=2;
+			}
 #else
 			if (1) {
 			SetDuty(Do[(DoIndex++)%25]);
@@ -494,7 +536,8 @@ void Play()
 	LM4991(1);
 	waveindex = WAV_LEN_INDEX + 4;
 #if 1	
-	SetDuty(getFlashByte(waveindex++));
+	if (sampleBits==8)
+		SetDuty(getFlashByte(waveindex++));
 #else	
 	DoIndex = 0;
 	SetDuty(Do[DoIndex++]);
@@ -747,7 +790,7 @@ int main()
 		
 	get_deviceid();
 	//selectTimer3Freq(FREQ);
-	selectTimer3Freq();
+
 	
 	//wavelen = *((unsigned long *)(&buff[WAV_LEN_INDEX]));
 	
@@ -755,6 +798,9 @@ int main()
 	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 1]) << 8;
 	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 2]) << 16;
 	wavelen += ((unsigned long)buff[WAV_LEN_INDEX + 3]) << 24;
+	sampleBits = buff[SAMPLE_BITS_INDEX];
+	
+	selectTimer3Freq();
 	Play();
 	for(;;)
 	{
